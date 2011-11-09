@@ -1,4 +1,7 @@
 rdoc
 *.gem
+*.iml
+*.ipr
+*.iws
 
 .sass-cache
