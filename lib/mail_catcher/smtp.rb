@@ -5,6 +5,14 @@ class MailCatcher::Smtp < EventMachine::Protocols::SmtpServer
     @current_message ||= {}
   end
 
+  def relay_server
+    @@relay_server || Relay.new
+  end
+
+  def self.relay_server= relay
+    @@relay_server = relay
+  end
+
   def receive_reset
     @current_message = nil
     true
@@ -30,6 +38,7 @@ class MailCatcher::Smtp < EventMachine::Protocols::SmtpServer
   def receive_message
     MailCatcher::Mail.add_message current_message
     puts "==> SMTP: Received message from '#{current_message[:sender]}' (#{current_message[:source].length} bytes)"
+    relay_server.add_message current_message
     true
   rescue
     puts "*** Error receiving message: #{current_message.inspect}"

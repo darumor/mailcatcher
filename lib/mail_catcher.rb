@@ -12,6 +12,7 @@ module MailCatcher
   autoload :Mail
   autoload :Smtp
   autoload :Web
+  autoload :Relay
 
 module_function
 
@@ -49,6 +50,9 @@ module_function
     :verbose => false,
     :daemon => !windows?,
     :growl => growlnotify?,
+    :relay => false,
+    :relay_ip => '127.0.0.1',
+    :relay_port => '25'
   }
 
   def parse! arguments=ARGV, defaults=@@defaults
@@ -76,6 +80,20 @@ module_function
         parser.on("--http-port PORT", Integer, "Set the port address of the http server") do |port|
           options[:http_port] = port
         end
+
+        parser.on('-r', "--relay", "Relay received SMTP messages to another SMTP server") do
+          options[:relay] = true
+        end
+
+        parser.on("--relay-ip IP", Integer, "Set the ip address of the SMTP relay server") do |ip|
+          options[:relay_ip] = ip
+        end
+
+        parser.on("--relay-port PORT", Integer, "Set the port address of the SMTP relay server") do |port|
+          options[:relay_port] = port
+        end
+        
+
 
         if mac?
           parser.on("--[no-]growl", "Growl to the local machine when a message arrives") do |growl|
@@ -129,6 +147,10 @@ module_function
       rescue_port options[:smtp_port] do
         EventMachine.start_server options[:smtp_ip], options[:smtp_port], Smtp
         puts "==> smtp://#{options[:smtp_ip]}:#{options[:smtp_port]}"
+        if options[:relay]
+          Smtp.relay_server= Relay.new(options[:relay_ip], options[:relay_port], true)
+          puts "==> smtp-relay://#{options[:relay_ip]}:#{options[:relay_port]}"
+        end
       end
 
       # Let Thin set itself up inside our EventMachine loop
