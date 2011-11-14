@@ -55,6 +55,7 @@ module_function
     :relay_port => '25',
   }
 
+  #TODO: ip-restriction
   def parse! arguments=ARGV, defaults=@@defaults
     @@defaults.dup.tap do |options|
       OptionParser.new do |parser|
@@ -97,7 +98,7 @@ module_function
           options[:relay_domain] = domain
         end
 
-        parser.on("--relay-acocunt ACCOUNT", "Set the account for SMTP server") do |account|
+        parser.on("--relay-account ACCOUNT", "Set the account for SMTP server") do |account|
           options[:relay_account] = account
         end
 
@@ -145,7 +146,7 @@ module_function
 
     puts "Starting MailCatcher"
 
-    Thin::Logging.silent = true
+    Thin::Logging.silent = !options[:verbose]
 
     # One EventMachine loop...
     EventMachine.run do
@@ -159,7 +160,7 @@ module_function
         EventMachine.start_server options[:smtp_ip], options[:smtp_port], Smtp
         puts "==> smtp://#{options[:smtp_ip]}:#{options[:smtp_port]}"
         if options[:relay]
-          Smtp.relay_server= Relay.new(options[:relay_ip], options[:relay_port], true, options[:relay_domain], options[:relay_account], options[:relay_password])
+          Smtp.relay_server=(Relay.new(options[:relay_ip], options[:relay_port], true, options[:relay_domain], options[:relay_account], options[:relay_password]))
           puts "==> smtp-relay://#{options[:relay_ip]}:#{options[:relay_port]}"
         end
       end
@@ -182,6 +183,7 @@ module_function
   end
 
   def quit!
+    Smtp.relay_server.kill! false
     EventMachine.next_tick { EventMachine.stop_event_loop }
   end
 

@@ -69,6 +69,16 @@ module_function
     @@latest_created_at_query.execute.next
   end
 
+  def whole_messages
+    @@messages_query ||= db.prepare "SELECT id, sender, recipients, subject, source, type, size, created_at FROM message ORDER BY created_at ASC"
+    @@messages_query.execute.map do |row|
+      Hash[row.fields.zip(row)].tap do |message|
+        message["recipients"] &&= ActiveSupport::JSON.decode message["recipients"]
+      end
+    end
+  end
+
+
   def messages
     @@messages_query ||= db.prepare "SELECT id, sender, recipients, subject, size, created_at FROM message ORDER BY created_at ASC"
     @@messages_query.execute.map do |row|
@@ -84,6 +94,14 @@ module_function
     row && Hash[row.fields.zip(row)].tap do |message|
       message["recipients"] &&= ActiveSupport::JSON.decode message["recipients"]
     end
+  end
+
+  def delete_single_message(id)
+    @@delete_single_message_query ||= db.prepare "DELETE FROM message WHERE id = ?"
+    @@delete_single_message_parts_query ||= db.prepare "DELETE FROM message_part WHERE message_id = ?"
+
+    @@delete_single_message_query.execute(id) and
+    @@delete_single_message_parts_query.execute(id)
   end
 
   def message_has_html?(id)
