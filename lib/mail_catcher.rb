@@ -52,7 +52,7 @@ module_function
     :growl => growlnotify?,
     :relay => false,
     :relay_ip => '127.0.0.1',
-    :relay_port => '25'
+    :relay_port => '25',
   }
 
   def parse! arguments=ARGV, defaults=@@defaults
@@ -85,14 +85,25 @@ module_function
           options[:relay] = true
         end
 
-        parser.on("--relay-ip IP", Integer, "Set the ip address of the SMTP relay server") do |ip|
+        parser.on("--relay-ip IP", "Set the ip address of the SMTP relay server") do |ip|
           options[:relay_ip] = ip
         end
 
         parser.on("--relay-port PORT", Integer, "Set the port address of the SMTP relay server") do |port|
           options[:relay_port] = port
         end
-        
+
+        parser.on("--relay-domain DOMAIN", "Set the domain for SMTP server account") do |domain|
+          options[:relay_domain] = domain
+        end
+
+        parser.on("--relay-acocunt ACCOUNT", "Set the account for SMTP server") do |account|
+          options[:relay_account] = account
+        end
+
+        parser.on("--relay-password PASSWORD", "Set the password for SMTP server account") do |password|
+          options[:relay_password] = password
+        end
 
 
         if mac?
@@ -148,7 +159,7 @@ module_function
         EventMachine.start_server options[:smtp_ip], options[:smtp_port], Smtp
         puts "==> smtp://#{options[:smtp_ip]}:#{options[:smtp_port]}"
         if options[:relay]
-          Smtp.relay_server= Relay.new(options[:relay_ip], options[:relay_port], true)
+          Smtp.relay_server= Relay.new(options[:relay_ip], options[:relay_port], true, options[:relay_domain], options[:relay_account], options[:relay_password])
           puts "==> smtp-relay://#{options[:relay_ip]}:#{options[:relay_port]}"
         end
       end
