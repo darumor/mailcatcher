@@ -13,14 +13,11 @@ class MailCatcher::Relay
 
     @for_messages = Mutex.new
     @cv = ConditionVariable.new
+    @message_queue = []
+    @queue_updater_running = false
+
     run!
     puts "RELAY: Initialized."
-  end
-
-  def message_added
-    if @active
-      @cv.signal
-    end
   end
 
   def run!
@@ -29,52 +26,56 @@ class MailCatcher::Relay
     }
   end
 
+
+  #todo may need some refactoring...
+  
+  def message_added
+    if @active
+      # allow adding many messages between queue updates
+      if !@queue_updater_running
+        @queue_updater_running = true
+        Thread.new {
+          @for_messages.synchronize {
+            puts "RELAY: updating message queue"
+            @message_queue = MailCatcher::Mail.whole_messages
+            @queue_updater_running = false
+            @cv.signal              #queue updated let sender proceed
+          }
+        }
+      end
+    end
+  end
+
   def send_messages
     while @active
       @for_messages.synchronize {
-        messages_to_send = MailCatcher::Mail.whole_messages
-        #puts "RELAY: Sending #{messages_to_send.size} messages..."
-        messages_to_send.each do |msg|
-          id = msg["id"]
-          msg_to_send = msg.merge({
-                  "formats" => ["source",
-                               ("html" if MailCatcher::Mail.message_has_html? id),
-                               ("plain" if MailCatcher::Mail.message_has_plain? id),
-            ].compact,
-                  "attachments" => MailCatcher::Mail.message_attachments(id).map do |attachment|
-                      attachment.merge({"href" => "/messages/#{escape(id)}/#{escape(attachment['cid'])}"})
-                  end
-            })
-
-          send_message msg_to_send
+        puts "RELAY: Sending #{@message_queue.size} messages..."
+        @message_queue.each do |msg|
+          send_message msg        #send it
           begin
-            MailCatcher::Mail.delete_single_message id
+            MailCatcher::Mail.delete_single_message msg["id"]   #remove it from the db
           rescue => e
             puts "RELAY: deletion error: #{e}"
             @active = false    # prevent eternal loop
           end
           sleep (1.0 / 10.0)  # send approx. 10 msg per second
         end
-        @cv.wait(@for_messages) if MailCatcher::Mail.messages.empty?
+        @cv.wait(@for_messages)               # wait for more messages
       }
     end
   end
 
   def send_message message
+    # turn keys from strings to syms
     msg_copy = {}
     message.each do |key, value|
       msg_copy[key.to_sym] = value
     end
 
-    #puts "RELAY: now sending: "
-    #puts "----------------"     #debug
-    #puts msg_copy[:source]      #debug
-    #puts "----------------"     #debug
-
     begin
-    Net::SMTP.start(@ip, @port, @domain, @account, @password, :plain) do |smtp|
-      smtp.send_message(msg_copy[:source], msg_copy[:sender], msg_copy[:recipients])
-    end
+      Net::SMTP.start(@ip, @port, @domain, @account, @password, :plain) do |smtp|
+        smtp.send_message(msg_copy[:source], msg_copy[:sender], msg_copy[:recipients])
+     end
     rescue => e
       "RELAY: SMTP-ERROR #{e}"  
     end

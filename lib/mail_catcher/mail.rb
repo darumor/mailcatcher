@@ -70,8 +70,8 @@ module_function
   end
 
   def whole_messages
-    @@messages_query ||= db.prepare "SELECT id, sender, recipients, subject, source, type, size, created_at FROM message ORDER BY created_at ASC"
-    @@messages_query.execute.map do |row|
+    @@whole_messages_query ||= db.prepare "SELECT id, sender, recipients, subject, source, type, size, created_at FROM message ORDER BY created_at ASC"
+    @@whole_messages_query.execute.map do |row|
       Hash[row.fields.zip(row)].tap do |message|
         message["recipients"] &&= ActiveSupport::JSON.decode message["recipients"]
       end
